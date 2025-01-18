@@ -4,7 +4,6 @@ from copy import deepcopy
 from django.core.exceptions import FieldError, MultipleObjectsReturned
 from django.db import IntegrityError, models, transaction
 from django.test import TestCase
-from django.utils.deprecation import RemovedInDjango60Warning
 from django.utils.translation import gettext_lazy
 
 from .models import (
@@ -800,6 +799,14 @@ class ManyToOneTests(TestCase):
         # refs #21563
         self.assertFalse(hasattr(Article(), "reporter"))
 
+    def test_create_after_prefetch(self):
+        c = City.objects.create(name="Musical City")
+        d1 = District.objects.create(name="Ladida", city=c)
+        city = City.objects.prefetch_related("districts").get(id=c.id)
+        self.assertSequenceEqual(city.districts.all(), [d1])
+        d2 = city.districts.create(name="Goa")
+        self.assertSequenceEqual(city.districts.all(), [d1, d2])
+
     def test_clear_after_prefetch(self):
         c = City.objects.create(name="Musical City")
         d = District.objects.create(name="Ladida", city=c)
@@ -878,27 +885,6 @@ class ManyToOneTests(TestCase):
             usa.cities.remove(chicago.pk)
         with self.assertRaisesMessage(TypeError, msg):
             usa.cities.set([chicago.pk])
-
-    def test_get_prefetch_queryset_warning(self):
-        City.objects.create(name="Chicago")
-        cities = City.objects.all()
-        msg = (
-            "get_prefetch_queryset() is deprecated. Use get_prefetch_querysets() "
-            "instead."
-        )
-        with self.assertWarnsMessage(RemovedInDjango60Warning, msg):
-            City.country.get_prefetch_queryset(cities)
-
-    def test_get_prefetch_queryset_reverse_warning(self):
-        usa = Country.objects.create(name="United States")
-        City.objects.create(name="Chicago")
-        countries = Country.objects.all()
-        msg = (
-            "get_prefetch_queryset() is deprecated. Use get_prefetch_querysets() "
-            "instead."
-        )
-        with self.assertWarnsMessage(RemovedInDjango60Warning, msg):
-            usa.cities.get_prefetch_queryset(countries)
 
     def test_get_prefetch_querysets_invalid_querysets_length(self):
         City.objects.create(name="Chicago")
