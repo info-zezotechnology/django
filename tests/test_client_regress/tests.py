@@ -1,6 +1,7 @@
 """
 Regression tests for the Test Client, especially the customized assertions.
 """
+
 import itertools
 import os
 
@@ -197,7 +198,7 @@ class AssertContainsTests(SimpleTestCase):
 
         long_content = (
             b"This is a very very very very very very very very long message which "
-            b"exceedes the max limit of truncation."
+            b"exceeds the max limit of truncation."
         )
         response = HttpResponse(long_content)
         msg = f"Couldn't find 'thrice' in the following response\n{long_content}"
@@ -1194,6 +1195,10 @@ class QueryStringTests(SimpleTestCase):
 
         # A POST-like request can pass a query string as part of the URL
         response = self.client.post("/request_data/?foo=whiz")
+        self.assertEqual(response.context["get-foo"], "whiz")
+        self.assertIsNone(response.context["post-foo"])
+
+        response = self.client.post("/request_data/", query_params={"foo": "whiz"})
         self.assertEqual(response.context["get-foo"], "whiz")
         self.assertIsNone(response.context["post-foo"])
 

@@ -1,3 +1,7 @@
+import importlib
+import sys
+import traceback
+import unittest
 from unittest import mock
 
 from django.conf import settings
@@ -65,8 +69,13 @@ class TestLevelTags(SimpleTestCase):
         self.assertEqual(base.LEVEL_TAGS, self.message_tags)
 
     def test_lazy(self):
+        storage_base_import_path = "django.contrib.messages.storage.base"
+        in_use_base = sys.modules.pop(storage_base_import_path)
+        self.addCleanup(sys.modules.__setitem__, storage_base_import_path, in_use_base)
         # Don't use @override_settings to avoid calling the setting_changed
-        # signal.
+        # signal, but ensure that base.LEVEL_TAGS hasn't been read yet (this
+        # means that we need to ensure the `base` module is freshly imported).
+        base = importlib.import_module(storage_base_import_path)
         old_message_tags = getattr(settings, "MESSAGE_TAGS", None)
         settings.MESSAGE_TAGS = {constants.ERROR: "bad"}
         try:
@@ -178,3 +187,17 @@ class AssertMessagesTest(MessagesTestMixin, SimpleTestCase):
         )
         with self.assertRaisesMessage(AssertionError, msg):
             self.assertMessages(response, [])
+
+    def test_method_frames_ignored_by_unittest(self):
+        response = FakeResponse()
+        try:
+            self.assertMessages(response, [object()])
+        except AssertionError:
+            exc_type, exc, tb = sys.exc_info()
+
+        result = unittest.TestResult()
+        result.addFailure(self, (exc_type, exc, tb))
+        stack = traceback.extract_tb(exc.__traceback__)
+        self.assertEqual(len(stack), 1)
+        # Top element in the stack is this method, not assertMessages.
+        self.assertEqual(stack[-1].name, "test_method_frames_ignored_by_unittest")
